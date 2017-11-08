@@ -16,7 +16,7 @@ default_values = {
         },
 
     "audio_codec" : {
-        "aac" : {
+        "libfdk_aac" : {
                 "audio_bitrate" : "192k"
             }
         }

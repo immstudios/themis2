@@ -1,37 +1,31 @@
 from nxtools import *
+from nxtools.media import *
+
+from .profiles import *
 
 class ThemisProgress(dict):
     pass
 
-class ThemisOutput(object):
-    def __init__(self, **kwargs):
-        self.args = {
-                "width" : 1920,
-                "height" : 1080,
-                "fps" : 25,
-                "video_codec" : "h264",
-                "audio_codec" : "aac"
-            }
-        self.args.update(kwargs)
-        for source_key in default_values:
-            defaults = default_values[source_key].get(self.args[source_key], {})
-            for key in defaults:
-                if not key in self.args:
-                    self.args[key] = defaults[key]
-
-
-    def build(self):
-        result = []
-        return result
 
 
 class Themis(object):
     def __init__(self, *args):
-        self.input_files = [FileObject(path) for path in args]
-        outputs = []
+        self.input_files = []
+        self.outputs = []
+        for input_file in args:
+            if isinstance(input_file, FileObject):
+                self.input_files.append(input_file)
+            elif type(input_file) in string_types:
+                self.input_files.append(FileObject(input_file))
+            else:
+                raise TypeError, "{} must be string of FileObject type"
         for input_file in self.input_files:
             if not (input_file.exists and input_file.size):
-                raise IOError, "{} is not a valid file."
+                raise IOError, "{} is not a valid file".format(input_file)
+            input_file.probe_result = ffprobe(input_file)
+            if not input_file.probe_result:
+                raise IOError, "Unable to open media file {}".format(input_file)
+        logging.debug("Themis transcoder initialized")
 
 
     def add_output(self, **kwargs):
@@ -45,11 +39,20 @@ class Themis(object):
             logging.error("Unable to start transcoding. No input file specified.")
             return False
 
-        if not outputs:
+        if not self.outputs:
             logging.error("Unable to start transcoding. No output profile specified.")
             return False
 
         cmd = ["-y"]
 
         for input_file in self.input_files:
-            pass
+            cmd.extend([
+                    "-i", input_file.path
+                ])
+
+        for output_profile in self.outputs:
+            cmd.extend(output_profile.build())
+
+        print (cmd)
+
+
