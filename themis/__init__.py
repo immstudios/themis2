@@ -1,17 +1,22 @@
 from nxtools import *
 from nxtools.media import *
 
-from .profiles import *
-
-class ThemisProgress(dict):
-    pass
-
+from .output import *
+from .utils import *
 
 
 class Themis(object):
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
+        self.settings = {
+                "expand_tv_levels" : False,
+                "deinterlace" : False,
+                "drop_second_field" : True,
+            }
+        self.settings.update(kwargs)
         self.input_files = []
         self.outputs = []
+        self.video_sink = None
+        self.audio_sinks = []
         for input_file in args:
             if isinstance(input_file, FileObject):
                 self.input_files.append(input_file)
@@ -23,6 +28,7 @@ class Themis(object):
             if not (input_file.exists and input_file.size):
                 raise IOError, "{} is not a valid file".format(input_file)
             input_file.probe_result = ffprobe(input_file)
+            input_file.input_args = []
             if not input_file.probe_result:
                 raise IOError, "Unable to open media file {}".format(input_file)
         logging.debug("Themis transcoder initialized")
@@ -30,6 +36,40 @@ class Themis(object):
 
     def add_output(self, **kwargs):
         self.outputs.append(ThemisOutput(**kwargs))
+
+
+    @property
+    def filter_chain(self):
+
+        for i, input_file in enumerate(self.input_files):
+            for stream in input_file.probe_result["streams"]:
+                if stream["codec_type"] == "video":
+                    if self.video_sink:
+                        continue
+                self.video_sink = "{}:{}".format(i, stream["index"])
+
+                if has_nvidia:
+                    if stream["codec_name"] in cuvid_decoders:
+                        input_file.input_args.extend(["-c:v", cuvid_decoders[stream["codec_name"]]])
+                    if self.settings["deinterlace"]:
+                        input_file.input_args(["-deint", "adaptive"])
+                    if self.settings["drop_second_field"]:
+                        input_file.input_args(["-drop_second_field", "1"])
+                    #TODO: scale?
+
+
+
+        result = ""
+
+        # we have video
+        if self.video_sink:
+            result += "[{}]".format(self.video_sink)
+            if not has_nvidia and self.settings["deinterlace"]:
+                result += "yadif"
+
+
+        return result
+
 
 
     def start(self, **kwargs):
@@ -43,12 +83,12 @@ class Themis(object):
             logging.error("Unable to start transcoding. No output profile specified.")
             return False
 
-        cmd = ["-y"]
-
         for input_file in self.input_files:
-            cmd.extend([
-                    "-i", input_file.path
-                ])
+            if input_file.input_args:
+                cmd.extend(input_file.input_args)
+            cmd.extend(["-i", input_file.path])
+
+        cmd.extend(["-filter_complex", self.filter_chain])
 
         for output_profile in self.outputs:
             cmd.extend(output_profile.build())
