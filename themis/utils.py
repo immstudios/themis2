@@ -12,3 +12,7 @@ cuvid_decoders = {
 
 class ThemisProgress(dict):
     pass
+
+
+def has_nvidia():
+    return False #TODO
