@@ -33,6 +33,10 @@ class Themis(object):
                 raise IOError, "Unable to open media file {}".format(input_file)
         logging.debug("Themis transcoder initialized")
 
+    @property
+    def has_nvidia(self):
+        return self.settings.get("has_nvidia", has_nvidia())
+
 
     def add_output(self, **kwargs):
         self.outputs.append(ThemisOutput(**kwargs))
@@ -52,9 +56,9 @@ class Themis(object):
                     if stream["codec_name"] in cuvid_decoders:
                         input_file.input_args.extend(["-c:v", cuvid_decoders[stream["codec_name"]]])
                     if self.settings["deinterlace"]:
-                        input_file.input_args(["-deint", "adaptive"])
+                        input_file.input_args.extend(["-deint", "adaptive"])
                     if self.settings["drop_second_field"]:
-                        input_file.input_args(["-drop_second_field", "1"])
+                        input_file.input_args.extend(["-drop_second_field", "1"])
                     #TODO: scale?
 
 
@@ -66,6 +70,7 @@ class Themis(object):
             result += "[{}]".format(self.video_sink)
             if not has_nvidia and self.settings["deinterlace"]:
                 result += "yadif"
+        result += "[video_track]"
 
 
         return result
@@ -83,6 +88,8 @@ class Themis(object):
             logging.error("Unable to start transcoding. No output profile specified.")
             return False
 
+        cmd = []
+
         for input_file in self.input_files:
             if input_file.input_args:
                 cmd.extend(input_file.input_args)
@@ -91,6 +98,8 @@ class Themis(object):
         cmd.extend(["-filter_complex", self.filter_chain])
 
         for output_profile in self.outputs:
+            if output_profile.has_video:
+                cmd.extend(["-map", "[video_track]"])
             cmd.extend(output_profile.build())
 
         print (cmd)
