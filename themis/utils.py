@@ -10,9 +10,25 @@ cuvid_decoders = {
     "vp9" : "vp9_cuvid",
 }
 
+def guess_aspect (w, h):
+    if 0 in [w, h]:
+        return 0
+    valid_aspects = [
+            (16, 9),
+            (4, 3),
+            (2.35, 1),
+            (5, 4),
+            (1, 1)
+        ]
+    ratio = float(w) / float(h)
+    return "{}:{}".format(*min(valid_aspects, key=lambda x:abs((float(x[0])/x[1])-ratio)))
+
+
 class ThemisProgress(dict):
     pass
 
 
-def has_nvidia():
-    return False #TODO
+def get_has_nvidia():
+    return True #TODO
+
+has_nvidia = get_has_nvidia()
