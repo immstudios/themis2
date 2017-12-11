@@ -1,18 +1,23 @@
 __all__ = ["ThemisOutput"]
 
-
-from defaults import *
-
-has_nvidia = False
-
+from .defaults import *
+from .utils import *
 
 class ThemisOutput(object):
-    def __init__(self, **kwargs):
+    def __init__(self, parent, output_path, **kwargs):
+        self.parent = parent
+        self.index = len(parent.outputs)
+        self.output_path = str(output_path)
         self.args = {
                 "width" : 1920,
                 "height" : 1080,
+                "aspect_ratio" : False,
                 "fps" : 25,
-                "audio_sample_rate" : "48000"
+                "audio_sample_rate" : "48000",
+                "video_codec" : None,
+                "audio_codec" : None,
+                "video_index" : 0,
+                "audio_index" : 0,
             }
         self.args.update(kwargs)
         for source_key in default_values:
@@ -20,6 +25,21 @@ class ThemisOutput(object):
             for key in defaults:
                 if not key in self.args:
                     self.args[key] = defaults[key]
+
+    @property
+    def aspect_ratio(self):
+        try:
+            if not self["aspect_ratio"]:
+                raise KeyError
+            if type(self["aspect_ratio"]) == float:
+                n, d = self["aspect_ratio"], 1
+            elif type(self["aspect_ratio"]) == str:
+                n, d = [float(r) for r in self["aspect_ratio"].replace(":", "/").split("/")]
+            elif type(self["aspect_ratio"]) in [tuple, list]:
+                n, d = self["aspect_ratio"]
+        except (KeyError, IndexError, ValueError):
+            n, d = self["width"], self["height"]
+        return guess_aspect(n, d)
 
     @property
     def has_video(self):
@@ -73,8 +93,15 @@ class ThemisOutput(object):
         #
 
         if self.has_audio:
+            codec_dict = {
+                    "aac" : "libfdk_aac"
+                }
+            if self["audio_codec"] in codec_dict:
+                audio_codec = codec_dict[self["audio_codec"]]
+            else:
+                audio_codec = self["audio_codec"]
             result.extend([
-                    "-c:a", self["audio_codec"],
+                    "-c:a", audio_codec,
                     "-ar", self["audio_sample_rate"]
                 ])
 
@@ -83,5 +110,6 @@ class ThemisOutput(object):
                         "-b:a", self["audio_bitrate"]
                     ])
 
+        result.append(self.output_path)
         return result
 
