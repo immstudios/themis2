@@ -21,7 +21,8 @@ def guess_aspect (w, h):
             (1, 1)
         ]
     ratio = float(w) / float(h)
-    return "{}:{}".format(*min(valid_aspects, key=lambda x:abs((float(x[0])/x[1])-ratio)))
+    n,d =  min(valid_aspects, key=lambda x:abs((float(x[0])/x[1])-ratio))
+    return float(n) / d
 
 
 class ThemisProgress(dict):
