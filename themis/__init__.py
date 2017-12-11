@@ -1,3 +1,5 @@
+import os
+
 from nxtools import *
 from nxtools.media import *
 
@@ -11,12 +13,18 @@ class Themis(object):
                 "expand_tv_levels" : False,
                 "deinterlace" : False,
                 "drop_second_field" : True,
+                "loudnorm" : -23,
+                "overlay" : False,
+                "use_temp_file" : False,            # Encode to temporary file
+                "temp_file_dir" : False,            # If false, use same directory as target
+                "temp_file_prefix" : ".creating."
             }
         self.settings.update(kwargs)
-        self.input_files = []
         self.outputs = []
-        self.video_sink = None
-        self.audio_sinks = []
+        self.input_files = []
+        self.video_tracks = []
+        self.audio_tracks = []
+
         for input_file in args:
             if isinstance(input_file, FileObject):
                 self.input_files.append(input_file)
@@ -24,56 +32,134 @@ class Themis(object):
                 self.input_files.append(FileObject(input_file))
             else:
                 raise TypeError, "{} must be string of FileObject type"
-        for input_file in self.input_files:
+
+        for i, input_file in enumerate(self.input_files):
             if not (input_file.exists and input_file.size):
                 raise IOError, "{} is not a valid file".format(input_file)
             input_file.probe_result = ffprobe(input_file)
             input_file.input_args = []
             if not input_file.probe_result:
                 raise IOError, "Unable to open media file {}".format(input_file)
+
+            for stream in input_file.probe_result["streams"]:
+                if stream["codec_type"] == "video":
+                    width = stream["width"]
+                    height = stream["height"]
+
+                    fps_n, fps_d = [float(e) for e in stream["r_frame_rate"].split("/")]
+                    fps = fps_n / fps_d
+
+                    try:
+                        dar_n, dar_d = [float(e) for e in stream["display_aspect_ratio"].split(":")]
+                        if not (dar_n and dar_d):
+                            raise Exception
+                    except Exception:
+                        dar_n, dar_d = float(stream["width"]), float(stream["height"])
+                    aspect = dar_n / dar_d
+                    aspect =  guess_aspect(dar_n, dar_d)
+
+                    # HW decoding of video track
+                    if has_nvidia:
+                        if stream["codec_name"] in cuvid_decoders:
+                            input_file.input_args.extend(["-c:v", cuvid_decoders[stream["codec_name"]]])
+                            if self["deinterlace"]:
+                                input_file.input_args.extend(["-deint", "adaptive"])
+                            if self["drop_second_field"]:
+                                input_file.input_args.extend(["-drop_second_field", "1"])
+                        #TODO: Hw Scale to max output size, override widht and height values
+
+                    self.video_tracks.append({
+                            "faucet" : "{}:{}".format(i, stream["index"]),
+                            "index" : len(self.video_tracks),
+                            "input_file_index" : i,
+                            "width" : width,
+                            "height" : height,
+                            "fps" : fps,
+                            "aspect" : aspect
+                        })
+
+
+                elif stream["codec_type"] == "audio":
+                    self.audio_tracks.append({
+                            "faucet" : "{}:{}".format(i, stream["index"]),
+                            "index" : len(self.video_tracks),
+                            "input_file_index" : i,
+                            "language" : stream.get("tags", {}).get("language", "eng")
+                        })
+
         logging.debug("Themis transcoder initialized")
 
-    @property
-    def has_nvidia(self):
-        return self.settings.get("has_nvidia", has_nvidia())
 
+    def __getitem__(self, key):
+        return self.settings.get(key, None)
 
-    def add_output(self, **kwargs):
-        self.outputs.append(ThemisOutput(**kwargs))
+    def add_output(self, output_path, **kwargs):
+        self.outputs.append(ThemisOutput(self, output_path, **kwargs))
 
 
     @property
     def filter_chain(self):
+        filters = []
 
-        for i, input_file in enumerate(self.input_files):
-            for stream in input_file.probe_result["streams"]:
-                if stream["codec_type"] == "video":
-                    if self.video_sink:
-                        continue
-                self.video_sink = "{}:{}".format(i, stream["index"])
+        voutputs = [output.index for output in self.outputs if output.has_video]
+        aoutputs = [output.index for output in self.outputs if output.has_audio]
 
-                if has_nvidia:
-                    if stream["codec_name"] in cuvid_decoders:
-                        input_file.input_args.extend(["-c:v", cuvid_decoders[stream["codec_name"]]])
-                    if self.settings["deinterlace"]:
-                        input_file.input_args.extend(["-deint", "adaptive"])
-                    if self.settings["drop_second_field"]:
-                        input_file.input_args.extend(["-drop_second_field", "1"])
-                    #TODO: scale?
+        if self["overlay"] and os.path.exists(str(self["overlay"])):
+            splitter = "".join(["[overlay{}]".format(i) for i in voutputs])
+            filters.append("movie={},split={}{}".format(self["overlay"], len(voutputs), splitter))
 
 
+        for i, output in enumerate(self.outputs):
+            if output.has_video:
+                track = self.video_tracks[output["video_index"]]
 
-        result = ""
+                link_filters = []
 
-        # we have video
-        if self.video_sink:
-            result += "[{}]".format(self.video_sink)
-            if not has_nvidia and self.settings["deinterlace"]:
-                result += "yadif"
-        result += "[video_track]"
+                if not has_nvidia and self["deinterlace"]:
+                    link_filters.append("yadif")
+
+                if track["aspect"] != output.aspect_ratio:
+                    if output.aspect_ratio > track["aspect"]: # pillarbox
+                        h = track["height"]
+                        w = track["height"] * output.aspect_ratio
+                        y = 0
+                        x = (w - track["width"]) / 2.0
+                    else: # letterbox
+                        w = track["width"]
+                        h = track["width"] * (1/track["aspect"])
+                        x = 0
+                        y = (h - track["height"]) / 2.0
+
+                    link_filters.append("pad={}:{}:{}:{}:black".format(w, h, x, y))
+
+                elif output["width"] != track["width"] or output["height"] != track["height"]:
+                    link_filters.append("scale={}:{}".format(output["width"], output["height"]))
 
 
-        return result
+                link = "[{}]".format(track["faucet"])
+                link += ",".join(link_filters or ["null"])
+                link += "[outv{}]".format(i)
+                filters.append(link)
+
+                #TODO: per output overlay
+                if self["overlay"]:
+                    #TODO: if overlay needs to be scaled
+                    filters.append("[overlay{}]scale={}:{}[overlay{}]".format(i,output["width"], output["height"], i))
+                    filters.append("[outv{i}][overlay{i}]overlay[outv{i}]".format(i=i))
+
+            if output.has_audio:
+                track = self.audio_tracks[output["audio_index"]]
+                link_filters = []
+                if self["loudnorm"]:
+                    link_filters.append("loudnorm=i={}".format(self["loudnorm"]))
+
+                link = "[{}]".format(track["faucet"])
+                link += ",".join(link_filters or ["null"])
+                link += "[outa{}]".format(i)
+                filters.append(link)
+
+        return ";".join(filters)
+
 
 
 
@@ -88,7 +174,7 @@ class Themis(object):
             logging.error("Unable to start transcoding. No output profile specified.")
             return False
 
-        cmd = []
+        cmd = ["-y"]
 
         for input_file in self.input_files:
             if input_file.input_args:
@@ -97,11 +183,13 @@ class Themis(object):
 
         cmd.extend(["-filter_complex", self.filter_chain])
 
-        for output_profile in self.outputs:
-            if output_profile.has_video:
-                cmd.extend(["-map", "[video_track]"])
-            cmd.extend(output_profile.build())
+        for i, output in enumerate(self.outputs):
+            if output.has_video:
+                cmd.extend(["-map", "[outv{}]".format(i)])
+            if output.has_audio:
+                cmd.extend(["-map", "[outa{}]".format(i)])
+            cmd.extend(output.build())
 
-        print (cmd)
-
-
+        status = ffmpeg(*cmd)
+        print "Themis ended", status
+        return status
