@@ -15,9 +15,9 @@ class Themis(object):
                 "drop_second_field" : True,
                 "loudnorm" : -23,
                 "overlay" : False,
-                "use_temp_file" : False,            # Encode to temporary file
-                "temp_file_dir" : False,            # If false, use same directory as target
-                "temp_file_prefix" : ".creating."
+                "use_temp_file" : True,            # Encode to temporary file
+                "temp_dir" : False,            # If false, use same directory as target
+                "temp_prefix" : ".creating."
             }
         self.settings.update(kwargs)
         self.outputs = []
@@ -191,5 +191,9 @@ class Themis(object):
             cmd.extend(output.build())
 
         status = ffmpeg(*cmd)
-        print "Themis ended", status
+
+        if self["use_temp_file"]:
+            for output in self.outputs:
+                os.rename(output.temp_path, output.output_path)
+
         return status

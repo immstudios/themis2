@@ -1,5 +1,7 @@
 __all__ = ["ThemisOutput"]
 
+import os
+
 from .defaults import *
 from .utils import *
 
@@ -25,6 +27,13 @@ class ThemisOutput(object):
             for key in defaults:
                 if not key in self.args:
                     self.args[key] = defaults[key]
+
+    @property
+    def temp_path(self):
+        output_dirname, output_filename = os.path.split(os.path.abspath(self.output_path))
+        temp_dir = self.parent["temp_dir"] or output_dirname
+        temp_prefix = self.parent["temp_prefix"] or ""
+        return os.path.join(temp_dir, temp_prefix + output_filename)
 
     @property
     def aspect_ratio(self):
@@ -110,6 +119,10 @@ class ThemisOutput(object):
                         "-b:a", self["audio_bitrate"]
                     ])
 
-        result.append(self.output_path)
+        if self.parent["use_temp_file"]:
+            result.append(self.temp_path)
+        else:
+            result.append(self.output_path)
+
         return result
 
