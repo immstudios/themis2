@@ -1,6 +1,12 @@
 default_values = {
 
     "video_codec" : {
+        "hevc" : {
+                "pixel_format" : "yuv422p",
+                "video_bitrate"  : "4000k",
+                "gop_size" : 80,
+        },
+
         "h264" : {
                 "pixel_format" : "yuv420p",
                 "video_bitrate"  : "4000k",

@@ -70,7 +70,7 @@ class ThemisOutput(object):
         #
 
         if self.has_video:
-            if self["video_codec"] == "h264":
+            if self["video_codec"] in ["h264", "hevc"]:
                 result.extend([
                         "-pix_fmt", self["pixel_format"],
                         "-b:v", self["video_bitrate"],
@@ -81,15 +81,24 @@ class ThemisOutput(object):
 
                 if has_nvidia:
                     result.extend([
-                            "-c:v", "h264_nvenc",
+                            "-c:v", {
+                                    "hevc": "hevc_nvenc",
+                                    "h264" : "h264_nvenc"
+                                }[self["video_codec"]],
                             "-strict_gop", "1",
                             "-no-scenecut", "1",
                         ])
                 else:
                     result.extend([
-                            "-c:v", "libx264",
-                            "-x264opts", "keyint={}:min-keyint={}:scenecut=-1".format(self["gop_size"], self["gop_size"])
+                            "-c:v", {
+                                    "hevc": "libx265",
+                                    "h264" : "lib264"
+                                }[self["video_codec"]],
+                            {"hevc" : "-x265opts", "h264" : "-x265opts"}[self["video_codec"]],
+                            "keyint={}:min-keyint={}:scenecut=-1".format(self["gop_size"], self["gop_size"])
                         ])
+
+
 
             elif self["video_codec"] == "dnxhd":
                 result.extend([
