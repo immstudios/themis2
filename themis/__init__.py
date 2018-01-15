@@ -14,6 +14,7 @@ class Themis(object):
                 "deinterlace" : False,
                 "drop_second_field" : True,
                 "loudnorm" : -23,
+                "fps" : 25,
                 "overlay" : False,
                 "use_temp_file" : True,            # Encode to temporary file
                 "temp_dir" : False,            # If false, use same directory as target
@@ -66,7 +67,6 @@ class Themis(object):
                                 input_file.input_args.extend(["-deint", "adaptive"])
                             if self["drop_second_field"]:
                                 input_file.input_args.extend(["-drop_second_field", "1"])
-                        #TODO: Hw Scale to max output size, override widht and height values
 
                     self.video_tracks.append({
                             "faucet" : "{}:{}".format(i, stream["index"]),
@@ -77,7 +77,6 @@ class Themis(object):
                             "fps" : fps,
                             "aspect" : aspect
                         })
-
 
                 elif stream["codec_type"] == "audio":
                     self.audio_tracks.append({
@@ -147,7 +146,7 @@ class Themis(object):
                     filters.append("[overlay{}]scale={}:{}[overlay{}]".format(i,output["width"], output["height"], i))
                     filters.append("[outv{i}][overlay{i}]overlay[outv{i}]".format(i=i))
 
-            if output.has_audio:
+            if output.has_audio and self.audio_tracks:
                 track = self.audio_tracks[output["audio_index"]]
                 link_filters = []
                 if self["loudnorm"]:
@@ -186,14 +185,28 @@ class Themis(object):
         for i, output in enumerate(self.outputs):
             if output.has_video:
                 cmd.extend(["-map", "[outv{}]".format(i)])
-            if output.has_audio:
+            if output.has_audio and self.audio_tracks:
                 cmd.extend(["-map", "[outa{}]".format(i)])
+
+            #if self["fps"] !=
+
+
             cmd.extend(output.build())
 
-        status = ffmpeg(*cmd)
+        is_success = ffmpeg(*cmd)
 
-        if self["use_temp_file"]:
-            for output in self.outputs:
-                os.rename(output.temp_path, output.output_path)
+        if is_success:
+            if self["use_temp_file"]:
+                for output in self.outputs:
+                    os.rename(output.temp_path, output.output_path)
+        else:
+            if self["use_temp_file"]:
+                for output in self.outputs:
+                    try:
+                        os.remove(output.temp_path)
+                    except Exception:
+                        pass
 
-        return status
+
+        logging.debug("Themis returned {}".format(is_success))
+        return is_success
