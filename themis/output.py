@@ -13,8 +13,8 @@ class ThemisOutput(object):
         self.args = {
                 "width" : 1920,
                 "height" : 1080,
+                "fps" : False,   # Use master setting or source FPS by default
                 "aspect_ratio" : False,
-                "fps" : 25,
                 "audio_sample_rate" : "48000",
                 "video_codec" : None,
                 "audio_codec" : None,
@@ -97,8 +97,6 @@ class ThemisOutput(object):
                             {"hevc" : "-x265opts", "h264" : "-x265opts"}[self["video_codec"]],
                             "keyint={}:min-keyint={}:scenecut=-1".format(self["gop_size"], self["gop_size"])
                         ])
-
-
 
             elif self["video_codec"] == "dnxhd":
                 result.extend([
