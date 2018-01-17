@@ -14,12 +14,13 @@ class Themis(object):
                 "deinterlace" : False,
                 "drop_second_field" : True,
                 "loudnorm" : -23,
-                "fps" : 25,
+                "fps" : False,                 # Use source fps by default
                 "overlay" : False,
-                "use_temp_file" : True,            # Encode to temporary file
+                "use_temp_file" : True,        # Encode to temporary file first
                 "temp_dir" : False,            # If false, use same directory as target
                 "temp_prefix" : ".creating."
             }
+
         self.settings.update(kwargs)
         self.outputs = []
         self.input_files = []
@@ -206,7 +207,4 @@ class Themis(object):
                         os.remove(output.temp_path)
                     except Exception:
                         pass
-
-
-        logging.debug("Themis returned {}".format(is_success))
         return is_success
