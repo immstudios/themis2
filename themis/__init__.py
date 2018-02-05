@@ -18,7 +18,9 @@ class Themis(object):
                 "overlay" : False,
                 "use_temp_file" : True,        # Encode to temporary file first
                 "temp_dir" : False,            # If false, use same directory as target
-                "temp_prefix" : ".creating."
+                "temp_prefix" : ".creating.",
+                "debug" : False,
+                "use_cuvid" : True,
             }
 
         self.settings.update(kwargs)
@@ -61,7 +63,7 @@ class Themis(object):
                     aspect =  guess_aspect(dar_n, dar_d)
 
                     # HW decoding of video track
-                    if has_nvidia:
+                    if has_nvidia and self["use_cuvid"]:
                         if stream["codec_name"] in cuvid_decoders:
                             input_file.input_args.extend(["-c:v", cuvid_decoders[stream["codec_name"]]])
                             if self["deinterlace"]:
@@ -194,7 +196,7 @@ class Themis(object):
 
             cmd.extend(output.build())
 
-        is_success = ffmpeg(*cmd)
+        is_success = ffmpeg(*cmd, debug=self["debug"])
 
         if is_success:
             if self["use_temp_file"]:
