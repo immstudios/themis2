@@ -10,17 +10,20 @@ class ThemisOutput(object):
         self.parent = parent
         self.index = len(parent.outputs)
         self.output_path = str(output_path)
+        self.audio_sinks = []
         self.args = {
                 "width" : 1920,
                 "height" : 1080,
-                "fps" : False,   # Use master setting or source FPS by default
                 "aspect_ratio" : False,
                 "audio_sample_rate" : "48000",
                 "video_codec" : None,
                 "audio_codec" : None,
                 "video_index" : 0,
-                "audio_index" : 0,
+                "audio_index" : "all",
+                "audio_mode" : "smca"
             }
+        if "fps" in kwargs:
+            self.parent["fps"] = args["fps"]
         self.args.update(kwargs)
         for source_key in default_values:
             defaults = default_values[source_key].get(self.args[source_key], {})
@@ -101,7 +104,8 @@ class ThemisOutput(object):
             elif self["video_codec"] == "dnxhd":
                 result.extend([
                         "-pix_fmt", self["pixel_format"],
-                        "-c:v", "dnxhd"
+                        "-c:v", "dnxhd",
+                        "-b:v", self["video_bitrate"]
                     ])
 
         #
