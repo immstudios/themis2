@@ -136,17 +136,19 @@ class Themis(object):
                     link_filters.append("yadif")
 
                 if track["aspect"] != output.aspect_ratio:
+                    w, h = output["width"], output["height"]
                     if output.aspect_ratio > track["aspect"]: # pillarbox
-                        h = track["height"]
-                        w = track["height"] * output.aspect_ratio
+                        ph = h
+                        pw = int(h  * track["aspect"])
                         y = 0
-                        x = (w - track["width"]) / 2.0
+                        x = int((w - pw) / 2.0)
                     else: # letterbox
-                        w = track["width"]
-                        h = track["width"] * (1/track["aspect"])
+                        pw = w
+                        ph = int(pwidth * (1/track["aspect"]))
                         x = 0
-                        y = (h - track["height"]) / 2.0
+                        y = int((h - ph) / 2.0)
 
+                    link_filters.append("scale={}:{}".format(pw, ph))
                     link_filters.append("pad={}:{}:{}:{}:black".format(w, h, x, y))
 
                 elif output["width"] != track["width"] or output["height"] != track["height"]:

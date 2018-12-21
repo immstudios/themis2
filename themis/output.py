@@ -15,7 +15,7 @@ class ThemisOutput(object):
                 "width" : 1920,
                 "height" : 1080,
                 "aspect_ratio" : False,
-                "audio_sample_rate" : "48000",
+                "audio_sample_rate" : 48000,
                 "video_codec" : None,
                 "audio_codec" : None,
                 "video_index" : 0,
@@ -23,7 +23,7 @@ class ThemisOutput(object):
                 "audio_mode" : "smca"
             }
         if "fps" in kwargs:
-            self.parent["fps"] = args["fps"]
+            self.parent["fps"] = kwargs["fps"]
         self.args.update(kwargs)
         for source_key in default_values:
             defaults = default_values[source_key].get(self.args[source_key], {})

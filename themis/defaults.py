@@ -18,6 +18,8 @@ default_values = {
         "dnxhd" : {
                 "pixel_format" : "yuv422p",
                 "video_bitrate" : "120M",
+                "width" : 1920,
+                "height" : 1080
             }
         },
 

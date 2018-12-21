@@ -1,3 +1,5 @@
+import os
+
 cuvid_decoders = {
     "h264" : "h264_cuvid",
     "hevc" : "hevc_cuvid",
@@ -30,6 +32,6 @@ class ThemisProgress(dict):
 
 
 def get_has_nvidia():
-    return True #TODO
+    return not bool(os.system("nvidia-smi > /dev/null 2>&1"))
 
 has_nvidia = get_has_nvidia()
