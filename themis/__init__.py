@@ -21,6 +21,8 @@ class Themis(object):
                 "temp_prefix" : ".creating.",
                 "debug" : False,
                 "use_cuvid" : True,
+                "mark_in" : 0,
+                "mark_out" : 0
             }
 
         self.settings.update(kwargs)
@@ -237,6 +239,8 @@ class Themis(object):
         for input_file in self.input_files:
             if input_file.input_args:
                 cmd.extend(input_file.input_args)
+            if self["mark_in"]:
+                cmd.extend(["-ss", str(self["mark_in"])])
             cmd.extend(["-i", input_file.path])
 
         filter_chain = self.filter_chain
@@ -252,6 +256,9 @@ class Themis(object):
 
             if output.has_video:
                 cmd.extend(["-r", self["fps"]])
+            if self["mark_out"]:
+                cmd.extend(["-to", str(self["mark_out"])])
+
             cmd.extend(output.build())
 
         is_success = ffmpeg(*cmd, debug=self["debug"])
