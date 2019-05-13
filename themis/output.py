@@ -108,6 +108,10 @@ class ThemisOutput(object):
                         "-b:v", self["video_bitrate"]
                     ])
 
+        if os.path.splitext(self.output_path)[1].lower() == ".mov":
+            if self.parent["fps"] == 25:
+                result.extend(["-video_track_timescale", "25"])
+
         #
         # Audio encoding profile
         #
